@@ -4,34 +4,39 @@ open_editor() {
   local file="$1"
   local size="$2"
   local font_option="$3"
-
   local text=""
   if [ -f "$file" ]; then
     text=$(cat "$file")
   fi
    local font="$font_option $size"
   local new_text=$(zenity --text-info \
-    --title="Простой текстовый редактор" \
+    --title="Prosty redaktor tekstowy" \
     --filename="$file" \
     --editable \
    --font="$font"\
-    --checkbox="Сохранить изменения" \
-    --extra-button="Изменить размер" \
-    --extra-button="Поиск и замена текста" \
+    --checkbox="Zapisz zmiany" \
+    --extra-button="Zmienić rozmiar" \
+    --extra-button="Historia zmian" \
+    --extra-button="Wyszukiwanie i zastępowanie tekstu" \
     --text="$text"
   )
+
+  if [ "$new_text" == "Historia zmian" ]; then
+    show_change_history "$file"
+    return
+  fi
 
   local exit_code=$?
   case $exit_code in
     0)
-      if [ "$new_text" != "Изменить размер" ] && [ "$new_text" != "Поиск и замена текста" ]; then
+      if [ "$new_text" != "Zmienić rozmiar" ] && [ "$new_text" != "Wyszukiwanie i zastępowanie tekstu" ]; then
         if [ -z "$new_text" ]; then
           echo "$text" > "$file"
           exit;
         fi
         local format=$(zenity --list \
-          --title="Выбор формата сохранения" \
-          --column="Формат" \
+          --title="Wybierz format zapisu" \
+          --column="Format" \
           "txt" \
           "html" \
           "pdf" \
@@ -52,39 +57,63 @@ open_editor() {
             wkhtmltopdf "$html_file" "$pdf_file"
             ;;
           *)
-            # Обработка ошибки или сохранение по умолчанию в формате txt
               echo "$new_text" > "$file"
             ;;
         esac
-
-        # Сохраняем размер текста в отдельный файл
         echo "$size" > "$SIZE_FILE"
-
-        exit
+        backup_dir="${file}_history"
+        mkdir -p "$backup_dir"
+        backup_file="${backup_dir}/$(date +'%Y%m%d%H%M%S').txt"
+        cp "$file" "$backup_file"
+        return
       fi
       ;;
   esac
 
-  if [ "$new_text" == "Поиск и замена текста" ]; then
+  if [ "$new_text" == "Wyszukiwanie i zastępowanie tekstu" ]; then
     search_and_replace "$file"
     return
   fi
 
-  SIZE=$(zenity --entry --title="Размер текста" --text="Введите новый размер текста" --entry-text "$size")
+  SIZE=$(zenity --entry --title="Rozmiar tekstu" --text="Wprowadź nowy rozmiar tekstu" --entry-text "$size")
   if [ -z "$SIZE" ]; then
     exit
   fi
 
 }
 
+show_change_history() {
+  local file="$1"
+  local backup_dir="${file}_history"
+  local backups=($(ls -t "$backup_dir"))
+  local selected_backup=$(zenity --list \
+    --title="Historia zmian" \
+    --column="Data i godzina" "${backups[@]}"
+  )
+
+  if [ -n "$selected_backup" ]; then
+    local backup_file="${backup_dir}/${selected_backup}"
+    local choose=$(zenity --text-info \
+      --title="Historia zmian - $selected_backup" \
+      --extra-button="BACKUP" \
+      --filename="$backup_file"
+    )
+    if [ "$choose" == "BACKUP" ]; then
+      local current_file="$file"
+      local backup_content=$(cat "$backup_file")
+      echo "$backup_content" > "$current_file"
+    fi
+  fi
+}
+
 search_and_replace() {
   local file="$1"
-  local search_term=$(zenity --entry --title="Поиск и замена" --text="Введите текст для поиска")
+  local search_term=$(zenity --entry --title="Wyszukiwanie i zastępowanie" --text="Wprowadź tekst wyszukiwania")
   if [ -z "$search_term" ]; then
     return
   fi
 
-  local replace_term=$(zenity --entry --title="Поиск и замена" --text="Введите текст для замены")
+  local replace_term=$(zenity --entry --title="Wyszukiwanie i zastępowanie" --text="Wprowadź tekst do zastąpienia")
   if [ -z "$replace_term" ]; then
     return
   fi
@@ -120,18 +149,14 @@ while getopts ":f:s:o:" opt; do
   esac
 done
 shift $((OPTIND - 1))
-
-# Выберите файл для редактирования или создайте новый файл
 if [ -z "$FILE" ]; then
   FILE=$(zenity --file-selection)
 fi
 
-# Проверьте, существует ли файл, и загрузите его содержимое или оставьте текст пустым
 if [ -f "$FILE" ]; then
   TEXT=$(cat "$FILE")
 
-  # Загрузить сохраненный размер текста, если он существует
-      SIZE_FILE="/tmp/$(basename "$FILE").size"
+    SIZE_FILE="${FILE}.size"
     if [ -z "$SIZE" ]; then
       if [ -f "$SIZE_FILE" ]; then
         SIZE=$(cat "$SIZE_FILE")
@@ -146,8 +171,8 @@ fi
 
 if [ -z "$FONT" ]; then 
     FONT=$(zenity --list \
-    --title="Выбор шрифта" \
-    --column="Шрифт" \
+    --title="Wybór czcionki" \
+    --column="Czcionka" \
     "Monospace" \
     "Arial" \
     "Times New Roman" \
@@ -170,7 +195,6 @@ case "$FONT" in
     FONT_OPTION="Courier New"
     ;;
   *)
-    # Обработка ошибки или установка шрифта по умолчанию
     FONT_OPTION="Monospace"
     ;;
 esac
