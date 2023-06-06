@@ -60,8 +60,8 @@ open_editor() {
               echo "$new_text" > "$file"
             ;;
         esac
-        echo "$size" > "$SIZE_FILE"
-        backup_dir="${file}_history"
+       echo "$size" > "/tmp/$(basename "${file}").size"
+        backup_dir="/tmp/$(basename "${file}")_history"
         mkdir -p "$backup_dir"
         backup_file="${backup_dir}/$(date +'%Y%m%d%H%M%S').txt"
         cp "$file" "$backup_file"
@@ -84,7 +84,7 @@ open_editor() {
 
 show_change_history() {
   local file="$1"
-  local backup_dir="${file}_history"
+  local backup_dir="/tmp/$(basename "${file}")_history"
   local backups=($(ls -t "$backup_dir"))
   local selected_backup=$(zenity --list \
     --title="Historia zmian" \
@@ -156,7 +156,7 @@ fi
 if [ -f "$FILE" ]; then
   TEXT=$(cat "$FILE")
 
-    SIZE_FILE="${FILE}.size"
+    SIZE_FILE="/tmp/$(basename "$FILE").size"
     if [ -z "$SIZE" ]; then
       if [ -f "$SIZE_FILE" ]; then
         SIZE=$(cat "$SIZE_FILE")
